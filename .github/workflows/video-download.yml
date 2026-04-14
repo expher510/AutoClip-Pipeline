@@ -1,0 +1,75 @@
+name: Download YouTube Video
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: 'YouTube Video URL'
+        required: true
+        type: string
+      cookies_b64:
+        description: 'Cookies file content (Base64 encoded)'
+        required: true
+        type: string
+      n8n_webhook:
+        description: 'n8n webhook URL'
+        required: true
+        type: string
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Setup yt-dlp (with FFmpeg + aria2 + EJS Node)
+        uses: AnimMouse/setup-yt-dlp@v3
+
+      - name: Decode and save cookies file
+        run: |
+          echo "${{ github.event.inputs.cookies_b64 }}" | base64 --decode > cookies.txt
+
+      - name: Download video
+        id: download
+        run: |
+          mkdir -p downloads
+          yt-dlp \
+            --cookies cookies.txt \
+            --output "downloads/%(title).100s.%(ext)s" \
+            --format "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best" \
+            --merge-output-format mp4 \
+            --no-playlist \
+            "${{ github.event.inputs.video_url }}"
+          VIDEO_FILE=$(ls downloads/*.mp4 2>/dev/null | head -1)
+          FILENAME=$(basename "$VIDEO_FILE")
+          echo "video_file=$VIDEO_FILE" >> $GITHUB_OUTPUT
+          echo "filename=$FILENAME" >> $GITHUB_OUTPUT
+          echo "✅ Downloaded: $VIDEO_FILE"
+
+      - name: Upload as Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: video-${{ github.run_id }}
+          path: downloads/*.mp4
+          retention-days: 90  # ✅ اتغير من 1 لـ 90 يوم
+
+      - name: Notify n8n
+        run: |
+          curl -s -X POST "${{ github.event.inputs.n8n_webhook }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"status\": \"success\",
+              \"run_id\": \"${{ github.run_id }}\",
+              \"repo\": \"${{ github.repository }}\",
+              \"filename\": \"${{ steps.download.outputs.filename }}\",
+              \"video_url\": \"${{ github.event.inputs.video_url }}\"
+            }"
+          echo "✅ Notified n8n"
+
+      - name: Notify n8n on failure
+        if: failure()
+        run: |
+          curl -s -X POST "${{ github.event.inputs.n8n_webhook }}" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"status\": \"error\",
+              \"message\": \"Download failed.\",
+              \"video_url\": \"${{ github.event.inputs.video_url }}\"
+            }"
