@@ -1,0 +1,40 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.env
+.venv/
+
+# Project Specific
+uploads/*
+outputs/*
+tmp/*
+temp/*
+logs/*
+fonts/*
+!uploads/.gitkeep
+!outputs/.gitkeep
+!tmp/.gitkeep
+!temp/.gitkeep
+!logs/.gitkeep
+*.mp4
+*.mp3
+*.wav
+*.ttf
+
+# Test files
+test_*.py
+test.py
+my_movie.mp4
+My Recording_1.mp4
+
+# Security
+firebase_key.json
+secure_storage.db
+
+# OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
